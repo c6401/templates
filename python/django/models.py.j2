@@ -7,16 +7,29 @@ fields:
   name:
 ''' ) %}
 
-{%- macro render_field(name, descriptor) %}
-{%- if not descriptor -%}
-models.CharField(max_length=255, help_text=_("{{ name.capitalize() }}"))
-{%- elif descriptor == 'int' or descriptor.type == 'int' -%}
-models.IntegerField(help_text=_("{{ name.capitalize() }}"))
-{%- elif descriptor == 'bool' or descriptor.type == 'bool' -%}
-models.BooleanField(help_text=_("{{ name.capitalize() }}"))
+{%- macro render_field(name, descr) %}
+{%- if not descr -%}
+models.CharField(max_length=255, help_text=_("{{ descr.help or name.capitalize() }}"))
+{%- elif descr == 'int' or descr.type == 'int' -%}
+models.IntegerField(help_text=_("{{ descr.help or name.capitalize() }}"))
+{%- elif descr == 'bool' or descr.type == 'bool' -%}
+models.BooleanField(help_text=_("{{ descr.help or name.capitalize() }}"))
+{%- elif descr.fk -%}
+models.ForeignKey('{{ descr.fk }}'
+                  {%- if descr.rel %}, related_name='{{ descr.rel }}'{% endif -%})
+{%- elif descr.oto -%}
+models.ForeignKey('{{ descr.oto }}'
+                  {%- if descr.rel %}, related_name='{{ descr.rel }}'{% endif -%})
 {%- else -%}
-models.CharField(max_length=255, help_text=_("{{ name.capitalize() }}"))
+models.CharField(max_length=255, help_text=_("{{ descr.help or name.capitalize() }}"))
 {%- endif %}
+{%- endmacro %}
+
+
+{%- macro render_key_types()  %}
+{%- for key in m.key -%}
+{{ m.fields[key].type or m.fields[key] or 'Text' }}{% if not loop.last %}, {% endif %}
+{%- endfor %}
 {%- endmacro -%}
 
 from django.db import models
@@ -26,6 +39,9 @@ from django.utils.translation import ugettext_lazy as _
 
 class {{ m.name }}Manager(models.Manager):
     def get_by_natural_key(self, {{ m.key | join(', ') }}):
+        {%- if 'typing' in m.modes %}
+        # type: ({{ render_key_types() }}) -> {{ m.name }}
+        {%- endif %}
         return self.get(
             {% for field in m.key %}{{ field }}={{ field }}, {% endfor %}
         )
