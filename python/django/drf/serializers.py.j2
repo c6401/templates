@@ -1,0 +1,30 @@
+{%- set m = yaml.load('''
+name:
+fields:
+    name:
+''') %}
+
+
+{%- macro render_field(name, props) %}
+    {%- set type = props.type or props or 'str' %}
+    {%- if type == 'email' -%}
+        serializers.EmailField()
+    {%- else -%}
+        serializers.CharField()
+    {%- endif %}
+{%- endmacro -%}
+
+
+# -*- coding: utf-8 -*-
+"""{{ m.name }} Serializer."""
+
+from rest_framework import serializers
+
+
+class {{ m.name }}Serializer(serializers.Serializer):
+    {%- if m.description %}
+    """{{ m.description }}"""
+    {% endif %}
+    {%- for name, props in m.fields.items() %}
+    {{ name }} = {{ render_field(name, props) }}
+    {%- endfor %}
