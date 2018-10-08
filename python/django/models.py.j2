@@ -7,20 +7,35 @@ fields:
   name:
 ''' ) %}
 
+
+{%- macro render_params(props) %}
+    {%- if props.id %}primary_key=True, {% endif %}
+    {%- if props.default %}default={{ props.default }}, {% endif %}
+    {%- if 'editable' in props %}editable={{ repr(props.editable) }}, {% endif %}
+{%- endmacro %}
+
+
 {%- macro render_field(name, props) %}
     {%- set type = props.type or props or 'str' %}
+    {%- set help = props.help or name.capitalize().replace('_', ' ')  %}
+
     {%- if props.fk -%}
         models.ForeignKey('{{ props.fk }}'
-                          {%- if props.rel %}, related_name='{{ props.rel }}'{% endif -%})
+                          {%- if props.rel %}, related_name='{{ props.rel }}'{% endif %})
     {%- elif props.oto -%}
         models.ForeignKey('{{ props.oto }}'
-                          {%- if props.rel %}, related_name='{{ props.rel }}'{% endif -%})
-    {%- elif type == 'str' -%}
-        models.CharField(max_length=255, help_text=_("{{ props.help or name.capitalize() }}"))
+                          {%- if props.rel %}, related_name='{{ props.rel }}'{% endif %})
     {%- elif type == 'int'  -%}
-        models.IntegerField(help_text=_("{{ props.help or name.capitalize() }}"))
+        models.IntegerField(help_text=_("{{ help }}"))
     {%- elif type == 'bool' -%}
-        models.BooleanField(help_text=_("{{ props.help or name.capitalize() }}"))
+        models.BooleanField(help_text=_("{{ help }}"))
+    {%- elif type == 'email' -%}
+        models.EmailField(help_text=_("{{ help }}"))
+    {%- elif type == 'uuid' -%}
+        models.UUIDField({{ render_params(props) }}help_text=_("{{ help }}"))
+    {%- else -%}
+        models.CharField(max_length=255, help_text=_("{{ help }}")
+                         {%- if props.enum %}, choices={{ name.upper() }}_CHOICES{% endif %})
     {%- endif %}
 {%- endmacro %}
 
@@ -29,15 +44,36 @@ fields:
 {%- for key in m.key -%}
 {{ m.fields[key].type or m.fields[key] or 'Text' }}{% if not loop.last %}, {% endif %}
 {%- endfor %}
-{%- endmacro -%}
+{%- endmacro %}
 
 
+{%- macro render_in_bulk_by_natural_key(m) %}
+{%- if 'natural_key_bulk' in m.modes %}
+
+def in_bulk_by_natural_key(
+    self,
+    natural_keys  # type: Iterable[Tuple[{{ render_key_types() }}]]
+):  # type: (...) -> Dict[{{ m.name }}.NaturalKey, {{ m.name }}]
+    if not natural_keys:
+        return {}
+
+    q_expressions = (Q(
+        {% for field in m.key %}{{ field }}={{ field }},{% if not loop.last %} {% endif %}{% endfor %}
+    ) for {{ m.key | join(', ') }} in natural_keys)
+
+    model_data = self.filter(reduce(or_, q_expressions))
+    return {m.natural_key(): m for m in model_data}
+{%- endif %}
+{%- endmacro %}
+
+{#- ///////////////////////////////// start //////////////////////////////////// #}
 # -*- coding: utf-8 -*-
 """{{ m.name }} model."""
 {#  #}
 {%- if 'natural_key_tuple' in m.modes %}
 from collections import namedtuple
 {%- endif %}
+
 {%- if 'natural_key_bulk' in m.modes %}
 from operator import or_
 {%- endif %}
@@ -68,39 +104,47 @@ class {{ m.name }}Manager(models.Manager):
         return self.get(
             {% for field in m.key %}{{ field }}={{ field }}, {% endfor %}
         )
-    {%- if 'natural_key_bulk' in m.modes %}
-
-    def in_bulk_by_natural_key(
-        self,
-        natural_keys  # type: Iterable[Tuple[{{ render_key_types() }}]]
-    ):  # type: (...) -> Dict[{{ m.name }}.NaturalKey, {{ m.name }}]
-        if not natural_keys:
-            return {}
-
-        q_expressions = (Q(
-            {% for field in m.key %}{{ field }}={{ field }},{% if not loop.last %} {% endif %}{% endfor %}
-        ) for {{ m.key | join(', ') }} in natural_keys)
-
-        model_data = self.filter(reduce(or_, q_expressions))
-        return {m.natural_key(): m for m in model_data}
-    {%- endif %}
+    {{- render_in_bulk_by_natural_key(m) }}
 {%- endif %}
 
 
 @python_2_unicode_compatible
-class {{ m.name }}(models.Model):
+class {{ m.name }}(RetryMixin, models.Model):
+    {%- if m.description %}
     """{{ m.description }}"""
-    {%- for field, descriptor in m.fields.items() %}
-    {{ field }} = {{ render_field(field, descriptor) }}
+{#  #}
+{%- endif %}
+
+    {%- for name, props in m.fields.items() if props.enum %}
+    {%- for item in props.enum %}
+    {{ name.upper() }}_{{ item.upper() }} = '{{ item }}'
     {%- endfor %}
+
+    {{ name.upper() }}_CHOICES = (
+    {%- for item in props.enum %}
+        ({{ name.upper() }}_{{ item.upper() }}, '{{ item }}'),
+    {%- endfor %}
+    )
+{#  #}
+    {%- endfor %}
+
+    {%- for field, props in m.fields.items() %}
+    {{ field }} = {{ render_field(field, props) }}
+    {%- endfor %}
+
+
     {%- if 'natural_key' in m.modes %}
 
     objects = {{ m.name }}Manager()
     {%- endif %}
+
+
     {%- if 'natural_key_tuple' in m.modes %}
 
     NaturalKey = namedtuple('{{ m.name }}Key', ['{{ m.key | join("', '") }}'])
     {%- endif  %}
+
+
     {%- if m.key %}
 
     class Meta:
@@ -113,12 +157,15 @@ class {{ m.name }}(models.Model):
 
     def __str__(self):
         return '<{{ m.name }} {self.pk}>'.format(self=self)
+
+
     {%- if 'natural_key' in m.modes  %}
 
     def natural_key(self):  {#  #}
         {%- if 'typing' in m.modes -%}
         # type: (...) -> {% if 'natural_key_tuple' in m.modes %}{{ m.name }}.NaturalKey{% endif %}
         {%- endif %}
+
         {%- if 'natural_key_tuple' in m.modes %}
         return self.NaturalKey({% for field in m.key %}self.{{ field }}{% if not loop.last %}, {% endif %}{% endfor %})
         {%- else %}
