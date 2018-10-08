@@ -66,10 +66,16 @@ def in_bulk_by_natural_key(
 {%- endif %}
 {%- endmacro %}
 
-{#- ///////////////////////////////// start //////////////////////////////////// #}
+{#- ///////////////////////////////// start //////////////////////////////// #}
 # -*- coding: utf-8 -*-
 """{{ m.name }} model."""
-{#  #}
+{# ////////////////////////////////// imports ////////////////////////////// #}
+{%- if 'py2' in m.modes %}
+from __future__ import unicode_literals
+
+{% endif %}
+
+
 {%- if 'natural_key_tuple' in m.modes %}
 from collections import namedtuple
 {%- endif %}
@@ -94,6 +100,7 @@ if MYPY:
     from typing import Dict, Iterable, Text, Tuple
 {%- endif %}
 {%- if 'natural_key' in m.modes %}
+{# ////////////////////////////////// body ////////////////////////////////// #}
 
 
 class {{ m.name }}Manager(models.Manager):
@@ -116,13 +123,13 @@ class {{ m.name }}(RetryMixin, models.Model):
 {%- endif %}
 
     {%- for name, props in m.fields.items() if props.enum %}
-    {%- for item in props.enum %}
-    {{ name.upper() }}_{{ item.upper() }} = '{{ item }}'
+    {%- for symbol, text in props.enum.items() %}
+    {{ name.upper() }}_{{ symbol.upper() }} = '{{ symbol }}'
     {%- endfor %}
 
     {{ name.upper() }}_CHOICES = (
-    {%- for item in props.enum %}
-        ({{ name.upper() }}_{{ item.upper() }}, '{{ item }}'),
+    {%- for symbol, text in props.enum.items() %}
+        ({{ name.upper() }}_{{ symbol.upper() }}, '{{ text }}'),
     {%- endfor %}
     )
 {#  #}
@@ -155,11 +162,11 @@ class {{ m.name }}(RetryMixin, models.Model):
         {%- endif %}
     {%- endif %}
 
-    def __str__(self):
-        return '<{{ m.name }} {self.pk}>'.format(self=self)
-
 
     {%- if 'natural_key' in m.modes  %}
+
+    def __str__(self):
+        return '{% for k in m.key %}{self.{{ k }}} {% endfor %}'.format(self=self)
 
     def natural_key(self):  {#  #}
         {%- if 'typing' in m.modes -%}
