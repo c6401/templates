@@ -116,7 +116,7 @@ class {{ m.name }}Manager(models.Manager):
 
 
 @python_2_unicode_compatible
-class {{ m.name }}(RetryMixin, models.Model):
+class {{ m.name }}(models.Model):
     {%- if m.description %}
     """{{ m.description }}"""
 {#  #}
