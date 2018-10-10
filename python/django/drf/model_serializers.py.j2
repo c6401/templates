@@ -1,0 +1,27 @@
+{%- set m = yaml.load('''
+name:
+fields:
+    name:
+''') -%}
+
+
+# -*- coding: utf-8 -*-
+"""{{ m.name }} Serializer."""
+{%- if 'py2' in m.modes %}
+
+from __future__ import unicode_literals
+{%- endif %}
+
+from rest_framework import serializers
+
+
+class {{ m.name }}Serializer(serializers.ModelSerializer):
+    {%- if m.description %}
+    """{{ m.description }}"""
+    {% endif %}
+
+    class Meta:
+        model = {{ m.name }}
+        fields = (
+           {% for f in m.fields %} '{{ f }}',{% endfor %}
+        )
