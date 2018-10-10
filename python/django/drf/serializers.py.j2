@@ -17,7 +17,10 @@ fields:
 
 # -*- coding: utf-8 -*-
 """{{ m.name }} Serializer."""
+{%- if 'py2' in m.modes %}
 
+from __future__ import unicode_literals
+{%- endif %}
 from rest_framework import serializers
 
 
