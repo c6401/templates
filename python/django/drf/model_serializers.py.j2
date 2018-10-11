@@ -1,8 +1,4 @@
-{%- set m = yaml.load('''
-name:
-fields:
-    name:
-''') -%}
+{%- set m = yaml.load(file('test_project/model.yaml')) -%}
 
 
 # -*- coding: utf-8 -*-
