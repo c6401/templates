@@ -1,11 +1,4 @@
-{%- set m = yaml.load('''
-name: ModelData
-description: ''
-key:
-  - name
-fields:
-  name:
-''' ) %}
+{%- set m = yaml.load(file('.../model.yaml')) %}
 
 
 {%- macro render_params(props) %}
@@ -73,7 +66,7 @@ def in_bulk_by_natural_key(
 {%- if 'py2' in m.modes %}
 from __future__ import unicode_literals
 
-{% endif %}
+{%- endif %}
 
 
 {%- if 'natural_key_tuple' in m.modes %}
@@ -114,8 +107,10 @@ class {{ m.name }}Manager(models.Manager):
     {{- render_in_bulk_by_natural_key(m) }}
 {%- endif %}
 
-
+{#  #}
+{%- if m.key %}
 @python_2_unicode_compatible
+{%- endif %}
 class {{ m.name }}(models.Model):
     {%- if m.description %}
     """{{ m.description }}"""
@@ -179,3 +174,4 @@ class {{ m.name }}(models.Model):
         return {% for field in m.key %}self.{{ field }}{% if not loop.last %}, {% endif %}{% endfor %}
         {%- endif %}
     {%- endif %}
+{#  #}

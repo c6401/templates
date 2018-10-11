@@ -1,8 +1,4 @@
-{%- set m = yaml.load('''
-name:
-fields:
-    name:
-''') %}
+{%- set m = yaml.load(file('.../model.yaml')) %}
 
 
 {%- macro render_field(name, props) %}
