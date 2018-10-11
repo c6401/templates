@@ -10,6 +10,8 @@ from __future__ import unicode_literals
 
 from rest_framework import serializers
 
+from . import models
+
 
 class {{ m.name }}Serializer(serializers.ModelSerializer):
     {%- if m.description %}
@@ -17,7 +19,7 @@ class {{ m.name }}Serializer(serializers.ModelSerializer):
     {% endif %}
 
     class Meta:
-        model = {{ m.name }}
+        model = models.{{ m.name }}
         fields = (
            {% for f in m.fields %} '{{ f }}',{% endfor %}
         )
