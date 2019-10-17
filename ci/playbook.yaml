@@ -1,0 +1,5 @@
+#!/usr/bin/env -S ansible-playbook -K --step
+- hosts: localhost
+  connection: local
+  tasks:
+    - name: test
